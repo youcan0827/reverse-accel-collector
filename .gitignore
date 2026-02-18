@@ -1,0 +1,29 @@
+# 環境変数（APIキー・パスワードを含む）
+.env
+
+# 仮想環境
+.venv/
+venv/
+env/
+
+# Pythonキャッシュ
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ログ（実行ごとに生成されるため除外）
+src/logs/*.log
+src/logs/cron.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
