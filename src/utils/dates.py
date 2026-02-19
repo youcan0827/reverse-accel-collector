@@ -34,13 +34,22 @@ _JP_SHORT = re.compile(r"(\d{1,2})[月/](\d{1,2})日?")
 _SLASH_DATE = re.compile(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})")
 
 
-def parse_japanese_date(text: Optional[str]) -> Optional[date]:
+def parse_japanese_date(
+    text: Optional[str],
+    reference_year: Optional[int] = None,
+) -> Optional[date]:
     """
     日本語・スラッシュ形式の日付文字列をdateオブジェクトに変換する。
     対応フォーマット:
       - 2024年3月15日 / 2024年03月15日
       - 2024/3/15 / 2024-03-15
-      - 3月15日（年を省略した場合は今年を補完）
+      - 3月15日（年を省略した場合は reference_year または今年を使用）
+
+    reference_year:
+      ページの掲載年など、年省略日付の解釈に使う基準年。
+      省略時は今年(JST)を使用する。
+      指定された年で日付が過去になる場合はそのまま返す（期限切れとして扱う）。
+
     解析できない場合はNoneを返す。
     """
     if not text:
@@ -64,8 +73,8 @@ def parse_japanese_date(text: Optional[str]) -> Optional[date]:
     m = _JP_SHORT.search(text)
     if m:
         try:
-            today = today_jst()
-            return date(today.year, int(m.group(1)), int(m.group(2)))
+            year = reference_year if reference_year is not None else today_jst().year
+            return date(year, int(m.group(1)), int(m.group(2)))
         except ValueError:
             pass
 

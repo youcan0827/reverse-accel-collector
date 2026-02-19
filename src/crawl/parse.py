@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-from src.utils.dates import parse_japanese_date
+from src.utils.dates import parse_japanese_date, today_jst
 from src.utils.logger import get_logger
 
 logger = get_logger()
@@ -76,6 +76,16 @@ def _find_deadline_text(text: str) -> str:
     return ""
 
 
+def _parse_deadline(dl_text: str, reference_date: Optional[date]) -> Optional[date]:
+    """
+    締め切りテキストを日付に変換する。
+    年省略の場合は reference_date の年を基準にする。
+    reference_date が過去年なら、過去年で解釈することで期限切れとして検出できる。
+    """
+    ref_year = reference_date.year if reference_date else None
+    return parse_japanese_date(dl_text, reference_year=ref_year)
+
+
 # ── eiicon 専用 ───────────────────────────────────────────────────
 
 def _parse_eiicon(soup: BeautifulSoup, url: str) -> ParsedPage:
@@ -95,10 +105,10 @@ def _parse_eiicon(soup: BeautifulSoup, url: str) -> ParsedPage:
             time_tag.get_text()
         )
 
-    # 締め切り
+    # 締め切り（掲載日の年を参照年として渡す）
     dl_text = _find_deadline_text(page.body_text)
     page.raw_deadline_text = dl_text
-    page.deadline_date = parse_japanese_date(dl_text)
+    page.deadline_date = _parse_deadline(dl_text, page.published_date)
 
     return page
 
@@ -110,7 +120,7 @@ def _parse_peatix(soup: BeautifulSoup, url: str) -> ParsedPage:
     page.title = _og_meta(soup, "og:title") or (soup.title.string if soup.title else "")
     page.organizer = _og_meta(soup, "og:site_name") or "Peatix"
 
-    # JSON-LDからイベント日時を取得
+    # JSON-LDからイベント日時を取得（年込みなので参照年不要）
     ld = _extract_jsonld(soup)
     if ld.get("endDate"):
         page.deadline_date = parse_japanese_date(str(ld["endDate"]))
@@ -136,17 +146,17 @@ def _parse_creww(soup: BeautifulSoup, url: str) -> ParsedPage:
     main = soup.find("div", class_=re.compile(r"challenge|detail|overview", re.I))
     page.body_text = main.get_text(" ", strip=True) if main else _body_text(soup)
 
-    # 締め切り（テキストから抽出）
-    dl_text = _find_deadline_text(page.body_text)
-    page.raw_deadline_text = dl_text
-    page.deadline_date = parse_japanese_date(dl_text)
-
-    # 掲載日
+    # 掲載日（締め切り解析より先に取得）
     time_tag = soup.find("time")
     if time_tag:
         page.published_date = parse_japanese_date(
             str(time_tag.get("datetime", "")) or time_tag.get_text()
         )
+
+    # 締め切り（掲載日の年を参照年として渡す）
+    dl_text = _find_deadline_text(page.body_text)
+    page.raw_deadline_text = dl_text
+    page.deadline_date = _parse_deadline(dl_text, page.published_date)
 
     return page
 
@@ -174,7 +184,7 @@ def _parse_generic(soup: BeautifulSoup, url: str) -> ParsedPage:
     # 本文
     page.body_text = _body_text(soup)
 
-    # 掲載日・更新日
+    # 掲載日・更新日（締め切り解析より先に取得）
     pub = ld.get("datePublished") or ld.get("dateCreated") or ""
     mod = ld.get("dateModified") or ""
     page.published_date = parse_japanese_date(str(pub))
@@ -188,10 +198,10 @@ def _parse_generic(soup: BeautifulSoup, url: str) -> ParsedPage:
                 page.published_date = d
                 break
 
-    # 締め切り
+    # 締め切り（掲載日の年を参照年として渡す）
     dl_text = _find_deadline_text(page.body_text)
     page.raw_deadline_text = dl_text
-    page.deadline_date = parse_japanese_date(dl_text)
+    page.deadline_date = _parse_deadline(dl_text, page.published_date)
 
     return page
 

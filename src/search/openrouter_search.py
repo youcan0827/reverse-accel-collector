@@ -17,25 +17,34 @@ from src.config import (
     PRIORITY_SOURCES,
     SEARCH_MAX_TOKENS,
 )
+from src.utils.dates import today_jst
 from src.utils.logger import get_logger
 
 logger = get_logger()
 
-_SEARCH_QUERIES = [
-    "リバース型アクセラレーター 日本 2024 2025 応募受付中",
-    "共創プログラム 企業 スタートアップ 募集 2024 2025",
-    "site:auba.eiicon.net リバース型 共創 募集",
-    "site:growth.creww.me アクセラ 参加企業 募集",
-    "オープンイノベーション 協業 プログラム 建設 BIM AI",
-    "コーポレートアクセラレーター 日本 2025 応募",
-]
 
-_SYSTEM_PROMPT = (
-    "あなたはリバース型アクセラレーター・共創プログラムの情報収集専門家です。"
-    "日本語のWebページURLのリストをJSON配列として出力してください。"
-    "形式: [\"https://...\", \"https://...\"]"
-    "URLのみを出力し、説明文は一切不要です。"
-)
+def _build_search_queries() -> list[str]:
+    year = today_jst().year
+    return [
+        f"リバース型アクセラレーター 日本 {year} 応募受付中",
+        f"共創プログラム 企業 スタートアップ 募集 {year}",
+        "site:auba.eiicon.net リバース型 共創 募集",
+        "site:growth.creww.me アクセラ 参加企業 募集",
+        f"オープンイノベーション 協業 プログラム 建設 BIM AI {year}",
+        f"コーポレートアクセラレーター 日本 {year} 応募",
+    ]
+
+
+def _build_system_prompt() -> str:
+    year = today_jst().year
+    return (
+        f"あなたはリバース型アクセラレーター・共創プログラムの情報収集専門家です。"
+        f"{year}年現在も募集受付中のプログラムのみを対象としてください。"
+        f"応募期限が過去のものや既に終了したプログラムは除外してください。"
+        "日本語のWebページURLのリストをJSON配列として出力してください。"
+        "形式: [\"https://...\", \"https://...\"]"
+        "URLのみを出力し、説明文は一切不要です。"
+    )
 
 
 def _extract_urls_from_text(text: str) -> list[str]:
@@ -73,9 +82,12 @@ def fetch_candidate_urls() -> list[str]:
         "X-Title": "Reverse Accel Collector",
     }
 
+    queries = _build_search_queries()
+    system_prompt = _build_system_prompt()
+
     with httpx.Client(timeout=60) as client:
-        for i, query in enumerate(_SEARCH_QUERIES):
-            logger.info(f"検索クエリ {i+1}/{len(_SEARCH_QUERIES)}: {query[:50]}...")
+        for i, query in enumerate(queries):
+            logger.info(f"検索クエリ {i+1}/{len(queries)}: {query[:50]}...")
             try:
                 resp = client.post(
                     f"{OPENROUTER_BASE_URL}/chat/completions",
@@ -83,7 +95,7 @@ def fetch_candidate_urls() -> list[str]:
                     json={
                         "model": OPENROUTER_MODEL_SEARCH,
                         "messages": [
-                            {"role": "system", "content": _SYSTEM_PROMPT},
+                            {"role": "system", "content": system_prompt},
                             {"role": "user", "content": query},
                         ],
                         "max_tokens": SEARCH_MAX_TOKENS,
