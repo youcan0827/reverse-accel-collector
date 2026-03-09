@@ -1,43 +1,42 @@
 # リバース型アクセラ 自動収集システム
 
-毎日10:00（JST）に日本国内のリバース型アクセラレーター・共創プログラムを自動収集し、Notionに登録してメール通知を送るPythonシステムです。
+毎日10:00（JST）に日本国内のリバース型アクセラレーター・共創プログラムを自動収集し、メールで通知するPythonシステムです。
 
 ## 機能
 
-- **自動検索** — OpenRouter（Perplexity Sonar）で6クエリを実行し、最大35件のURLを収集
-- **スマートフィルタ** — 期限切れ・90日超・重複を除外し、鮮度スコア順で上位5件に絞り込み
-- **AI構造化** — Gemini 2.0 FlashでONESTRUCTION目線のJSON評価を自動生成
-- **Notion登録** — 15プロパティのデータベースへ重複なく登録
-- **メール通知** — 0件でも必ず結果レポートをGmail送信
+- **実ウェブ検索** — Perplexity Sonarで10クエリを実行し、最大80件のURLを収集
+- **スマートフィルタ** — 期限切れ・古い掲載日・重複を除外し、鮮度スコア順で上位15件に絞り込み
+- **AI評価** — LLMがONESTRUCTION目線で参加お勧め度（1〜5）と募集中判定（is_active）を付与
+- **メール通知** — 参加お勧め度の高い順にURLをリスト送信（0件でも必ず送信）
+- **重複管理** — 一度送信したURLはローカルファイルで管理し再送しない
 
 ## ディレクトリ構成
 
 ```
-docs/
+reverse-accel-collector/
 ├── src/
-│   ├── main.py                  # エントリーポイント（8ステップ統合）
+│   ├── main.py                  # エントリーポイント
 │   ├── config.py                # 環境変数・定数管理
 │   ├── search/
-│   │   └── openrouter_search.py # OpenRouter検索（最大35件）
+│   │   └── openrouter_search.py # Perplexity Sonar検索（最大80件）
 │   ├── crawl/
 │   │   ├── fetch.py             # httpx 並行フェッチ
 │   │   └── parse.py             # eiicon/peatix/creww + 汎用パーサー
 │   ├── filter/
 │   │   ├── deadline.py          # 期限フィルタ
-│   │   ├── freshness.py         # 鮮度スコアリング
-│   │   └── dedupe.py            # 重複排除
+│   │   ├── freshness.py         # 鮮度スコアリング・鮮度フィルタ
+│   │   └── dedupe.py            # 重複排除（ローカルファイル管理）
 │   ├── llm/
-│   │   └── formatter.py         # LLM構造化整形
-│   ├── notion/
-│   │   ├── client.py            # Notion API CRUD
-│   │   └── mapper.py            # Notionプロパティ変換
+│   │   └── formatter.py         # LLM評価・整形
 │   ├── notify/
 │   │   └── emailer.py           # Gmail SMTP通知
 │   ├── utils/
 │   │   ├── logger.py            # ファイル+コンソール二重出力
 │   │   └── dates.py             # JST日付処理
+│   ├── data/
+│   │   └── seen_urls.json       # 送信済みURL管理
 │   └── logs/                    # 実行ログ（YYYY-MM-DD.log）
-├── .env.example                 # 環境変数テンプレート
+├── .env                         # 環境変数（要作成）
 ├── requirements.txt
 └── run.sh                       # cron実行ラッパー
 ```
@@ -47,7 +46,7 @@ docs/
 ### 1. リポジトリをクローン
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/reverse-accel-collector.git
+git clone git@github.com:youcan0827/reverse-accel-collector.git
 cd reverse-accel-collector
 ```
 
@@ -61,129 +60,75 @@ pip install -r requirements.txt
 
 ### 3. 環境変数を設定
 
-```bash
-cp .env.example .env
-```
+`.env` ファイルをプロジェクトルートに作成：
 
-`.env` を開いて以下の4種類のキーを入力してください。
+```env
+OPENROUTER_API_KEY=sk-or-xxxxxxxx
+EMAIL_FROM=your@gmail.com
+EMAIL_TO=your@gmail.com
+EMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+```
 
 | 変数名 | 取得方法 |
 |---|---|
 | `OPENROUTER_API_KEY` | [openrouter.ai/keys](https://openrouter.ai/keys) |
-| `NOTION_TOKEN` | [notion.so/my-integrations](https://www.notion.so/my-integrations) でインテグレーション作成 |
-| `NOTION_DATABASE_ID` | 後述の「Notionセットアップ」を参照 |
-| `EMAIL_APP_PASSWORD` | Googleアカウント → セキュリティ → アプリパスワード |
+| `EMAIL_APP_PASSWORD` | Googleアカウント → セキュリティ → アプリパスワード（16文字） |
 
-### 4. Notionセットアップ
-
-#### 4-1. インテグレーションの作成
-
-1. [notion.so/my-integrations](https://www.notion.so/my-integrations) でインテグレーションを新規作成
-2. 発行された **Internal Integration Secret** を `NOTION_TOKEN` に設定
-
-#### 4-2. データベースの作成
-
-以下のスクリプトで、指定したNotionページ内にデータベースを自動作成できます。
+### 4. 動作確認
 
 ```bash
-# 親ページIDを引数として実行（NotionページURLの末尾32文字）
-python3 - <<'EOF'
-import httpx, os, json
-from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv(Path('.env'))
-TOKEN = os.environ['NOTION_TOKEN']
-PAGE_ID = input('NotionページIDを入力: ').strip().replace('-', '')
-
-headers = {
-    'Authorization': f'Bearer {TOKEN}',
-    'Notion-Version': '2022-06-28',
-    'Content-Type': 'application/json',
-}
-
-body = {
-    'parent': {'type': 'page_id', 'page_id': PAGE_ID},
-    'title': [{'type': 'text', 'text': {'content': 'リバース型アクセラ 収集DB'}}],
-    'properties': {
-        'タイトル': {'title': {}},
-        '主催': {'rich_text': {}},
-        '目的・狙い': {'rich_text': {}},
-        '企画の概要': {'rich_text': {}},
-        '企画のキモ': {'rich_text': {}},
-        '実現可能性': {'rich_text': {}},
-        'ROI': {'rich_text': {}},
-        '体制': {'rich_text': {}},
-        'スケジュール': {'rich_text': {}},
-        'リスク': {'rich_text': {}},
-        '相性評価': {'number': {'format': 'number'}},
-        '参照URL': {'url': {}},
-        'ステータス': {'select': {'options': [
-            {'name': '候補', 'color': 'blue'},
-            {'name': '要確認', 'color': 'yellow'},
-        ]}},
-        '掲載日': {'date': {}},
-        '更新日': {'date': {}},
-    }
-}
-
-r = httpx.post('https://api.notion.com/v1/databases', headers=headers, json=body, timeout=15)
-data = r.json()
-if r.status_code == 200:
-    db_id = data['id'].replace('-', '')
-    print(f'\n✅ DB作成成功!')
-    print(f'NOTION_DATABASE_ID={db_id}')
-    print('\n.envのNOTION_DATABASE_IDをこの値に更新してください。')
-else:
-    print('エラー:', json.dumps(data, ensure_ascii=False))
-EOF
-```
-
-#### 4-3. インテグレーションをページに接続
-
-1. Notionで対象のページを開く
-2. 右上「**…**」→「**接続**」→ 作成したインテグレーションを選択
-
-### 5. 動作確認
-
-```bash
-# 手動実行
 python -m src.main
 
 # ログ確認
 cat src/logs/$(date +%Y-%m-%d).log
 ```
 
-### 6. cronで自動実行（毎日10:00 JST）
+### 5. cronで自動実行（毎日10:00 JST）
 
 ```bash
 crontab -e
 ```
 
-以下を追加：
+以下を追加（パスは環境に合わせて変更）：
 
 ```
-0 10 * * * /Users/YOUR_USERNAME/docs/run.sh >> /Users/YOUR_USERNAME/docs/src/logs/cron.log 2>&1
+0 10 * * * /path/to/reverse-accel-collector/run.sh >> /path/to/reverse-accel-collector/src/logs/cron.log 2>&1
 ```
 
 ## 処理フロー
 
 ```
-[OpenRouter検索] 6クエリ → 最大35件URL
+[Perplexity Sonar検索] 10クエリ → 最大80件URL
         ↓
-[HTML取得] httpx 並行フェッチ（concurrency=3）
+[HTML取得] httpx 並行フェッチ（concurrency=5）
         ↓
-[重複排除] Notion既登録URLと照合
+[重複排除] 送信済みURL（seen_urls.json）と照合
         ↓
 [期限フィルタ] 過去・90日超を除外
         ↓
-[鮮度ソート] 7日以内+優先ソースを上位に
+[鮮度フィルタ] 掲載日120日超 & 期限不明を除外
         ↓
-[LLM整形] 上位5件をGeminiでJSON構造化
+[鮮度ソート] 上位15件に絞り込み
         ↓
-[Notion登録] 15プロパティで登録
+[LLM評価] 参加お勧め度（1-5）・is_active判定
         ↓
-[メール通知] 結果レポートを送信（0件でも必ず送信）
+[メール通知] お勧め度順にURLをリスト送信
+```
+
+## メール形式
+
+```
+=== リバース型アクセラ収集レポート (2026-03-09) ===
+
+【案件リスト】3件
+
+1. https://auba.eiicon.net/projects/xxxxx
+   参加お勧め度: ★★★★☆ (4/5)
+
+2. https://growth.creww.me/...
+   参加お勧め度: ★★★☆☆ (3/5)
+
+除外: 期限切れ 2件 / 重複 5件
 ```
 
 ## 優先収集ソース
@@ -198,26 +143,29 @@ crontab -e
 
 | フェーズ | モデル | 概算 |
 |---|---|---|
-| 検索（6クエリ） | perplexity/sonar | ~0.03円/日 |
-| LLM整形（最大5件） | google/gemini-2.0-flash-001 | ~0.19円/日 |
-| **合計** | | **~0.22円/日** |
+| 検索（10クエリ） | perplexity/sonar | ~0.05円/日 |
+| LLM評価（最大15件） | gemini-flash | ~0.6円/日 |
+| **合計** | | **~0.65円/日** |
 
 ## トラブルシューティング
 
+### 解析失敗が多い
+
+```bash
+pip install lxml
+```
+
+`lxml` が未インストールの場合、HTML解析が全件失敗します。
+
 ### 検索結果が0件
 
-- `OPENROUTER_API_KEY` が有効か確認
-- [openrouter.ai/models](https://openrouter.ai/models) でモデルが利用可能か確認
-
-### Notion登録が失敗する
-
-- `NOTION_TOKEN` とインテグレーションの接続を確認
-- `NOTION_DATABASE_ID` がページIDでなくデータベースIDであることを確認
+- `OPENROUTER_API_KEY` が `.env` に設定されているか確認
+- [openrouter.ai/activity](https://openrouter.ai/activity) でAPIの疎通を確認
 
 ### メールが届かない
 
 - Googleの2段階認証が有効になっているか確認
-- `EMAIL_APP_PASSWORD` がアプリパスワード（16文字）であることを確認（通常のGmailパスワードは不可）
+- `EMAIL_APP_PASSWORD` はアプリパスワード（16文字）を使用（通常のパスワード不可）
 
 ## ライセンス
 
