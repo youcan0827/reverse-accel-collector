@@ -1,6 +1,6 @@
 """
 Gmail SMTP SSL によるメール通知
-件名: [ReverseAccel] YYYY-MM-DD 実行結果
+件名: [ReverseAccel] YYYY-MM-DD N件
 0件でも必ず送信する
 """
 import smtplib
@@ -19,6 +19,8 @@ from src.utils.logger import get_logger
 
 logger = get_logger()
 
+_STARS = {1: "★☆☆☆☆", 2: "★★☆☆☆", 3: "★★★☆☆", 4: "★★★★☆", 5: "★★★★★"}
+
 
 def build_body(
     registered: list[dict],
@@ -26,50 +28,33 @@ def build_body(
     duplicate_count: int,
     errors: list[str],
 ) -> str:
-    """
-    メール本文を組み立てる。
-
-    Args:
-        registered:      登録済みレコードのリスト（{"タイトル": ..., "参照URL": ...}）
-        excluded_count:  期限フィルタで除外された件数
-        duplicate_count: 重複排除された件数
-        errors:          エラーメッセージのリスト
-    """
     today = today_jst().isoformat()
-    candidate = [r for r in registered if r.get("ステータス") == "候補"]
-    uncertain = [r for r in registered if r.get("ステータス") == "要確認"]
 
-    lines = [
-        f"=== リバース型アクセラ収集レポート ({today}) ===",
-        "",
-        f"【登録件数】{len(registered)}件",
-        f"  - 候補:   {len(candidate)}件",
-        f"  - 要確認: {len(uncertain)}件",
-        f"【除外件数】{excluded_count}件（期限切れ／90日超）",
-        f"【重複排除】{duplicate_count}件",
-        "",
-    ]
+    lines = [f"=== リバース型アクセラ収集レポート ({today}) ===", ""]
 
     if registered:
-        lines.append("【登録案件一覧】")
-        for r in registered:
-            status = r.get("ステータス", "")
-            title = r.get("タイトル", "（タイトル不明）")
+        lines.append(f"【案件リスト】{len(registered)}件")
+        lines.append("")
+        for i, r in enumerate(registered, 1):
             url = r.get("参照URL", "")
-            lines.append(f"  [{status}] {title}")
-            if url:
-                lines.append(f"    {url}")
+            score = r.get("参加お勧め度", 0)
+            stars = _STARS.get(int(score), "?????") if score else "未評価"
+            lines.append(f"{i}. {url}")
+            lines.append(f"   参加お勧め度: {stars} ({score}/5)")
+            lines.append("")
+    else:
+        lines.append("【案件リスト】該当なし")
         lines.append("")
 
+    lines.append(f"除外: 期限切れ {excluded_count}件 / 重複 {duplicate_count}件")
+
     if errors:
+        lines.append("")
         lines.append("【エラー】")
         for e in errors:
             lines.append(f"  - {e}")
-        lines.append("")
-    else:
-        lines.append("【エラー】なし")
-        lines.append("")
 
+    lines.append("")
     lines.append("---")
     lines.append("本メールは自動送信されました。")
     return "\n".join(lines)
@@ -81,12 +66,9 @@ def send_report(
     duplicate_count: int,
     errors: list[str],
 ) -> None:
-    """
-    実行結果レポートメールを送信する。
-    SMTP接続失敗時はログに記録して終了（例外を握り潰す）。
-    """
     today = today_jst().isoformat()
-    subject = f"[ReverseAccel] {today} 実行結果"
+    count = len(registered)
+    subject = f"[ReverseAccel] {today} {count}件"
     body = build_body(registered, excluded_count, duplicate_count, errors)
 
     msg = MIMEText(body, "plain", "utf-8")

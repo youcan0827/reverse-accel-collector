@@ -14,7 +14,7 @@ load_dotenv(dotenv_path=_ENV_FILE)
 # ── OpenRouter ──────────────────────────────────────────────────
 OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL_SEARCH: str = os.environ.get(
-    "OPENROUTER_MODEL_SEARCH", "google/gemini-flash-1.5"
+    "OPENROUTER_MODEL_SEARCH", "perplexity/sonar"
 )
 OPENROUTER_MODEL_EXTRACT: str = os.environ.get(
     "OPENROUTER_MODEL_EXTRACT", "google/gemini-flash-1.5"
@@ -39,13 +39,14 @@ PRIORITY_SOURCES: list[str] = [
     "peatix.com",
     "growth.creww.me",
 ]
-MAX_URLS: int = 35          # 検索で取得する最大URL数
-MAX_REGISTER: int = 5       # Notionに登録する最大件数
+MAX_URLS: int = 80          # 検索で取得する最大URL数
+MAX_REGISTER: int = 15      # Notionに登録する最大件数
 DEADLINE_MAX_DAYS: int = 90 # 期限がこの日数より先は除外
 FRESHNESS_DAYS: int = 7     # 鮮度スコアの基準日数
+STALENESS_MAX_DAYS: int = 120  # 掲載日・更新日がこれより古く期限不明なら除外
 
 # ── クロール設定 ──────────────────────────────────────────────────
-FETCH_CONCURRENCY: int = 3
+FETCH_CONCURRENCY: int = 5
 FETCH_DELAY_SEC: float = 1.5
 FETCH_TIMEOUT_SEC: int = 15
 USER_AGENT: str = (
@@ -57,9 +58,13 @@ USER_AGENT: str = (
 # ── LLM設定 ──────────────────────────────────────────────────────
 LLM_MAX_TOKENS: int = 1200
 LLM_TEMPERATURE: float = 0.1
-SEARCH_MAX_TOKENS: int = 800
+SEARCH_MAX_TOKENS: int = 1500
 BODY_EXCERPT_CHARS: int = 2000  # LLMに渡す本文の最大文字数
 
 # ── パス ─────────────────────────────────────────────────────────
 LOG_DIR: Path = Path(__file__).resolve().parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
+
+DATA_DIR: Path = Path(__file__).resolve().parent / "data"
+DATA_DIR.mkdir(exist_ok=True)
+SEEN_URLS_FILE: Path = DATA_DIR / "seen_urls.json"  # 送信済みURL管理ファイル

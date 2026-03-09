@@ -1,13 +1,39 @@
 """
 重複排除
-第一キー: URL完全一致
-第二キー: タイトル + 期限日
+第一キー: URL完全一致（ローカルJSONファイルで管理）
+第二キー: タイトル + 期限日（同一セッション内）
 """
+import json
+
+from src.config import SEEN_URLS_FILE
 from src.crawl.parse import ParsedPage
 from src.utils.dates import format_date_iso
 from src.utils.logger import get_logger
 
 logger = get_logger()
+
+
+def load_seen_urls() -> set[str]:
+    """送信済みURLをローカルファイルから読み込む"""
+    if not SEEN_URLS_FILE.exists():
+        return set()
+    try:
+        data = json.loads(SEEN_URLS_FILE.read_text(encoding="utf-8"))
+        return set(data) if isinstance(data, list) else set()
+    except Exception as e:
+        logger.warning(f"seen_urls読み込み失敗: {e}")
+        return set()
+
+
+def save_seen_urls(urls: set[str]) -> None:
+    """送信済みURLをローカルファイルに保存する"""
+    try:
+        SEEN_URLS_FILE.write_text(
+            json.dumps(sorted(urls), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception as e:
+        logger.warning(f"seen_urls保存失敗: {e}")
 
 
 def dedupe_pages(
@@ -17,7 +43,7 @@ def dedupe_pages(
     """
     Args:
         pages: フィルタ後のページリスト
-        existing_urls: Notionに既登録のURLセット
+        existing_urls: 送信済みURLセット（ローカルファイルから読み込み済み）
 
     Returns:
         (重複除外後のページリスト, 除外されたURLリスト)

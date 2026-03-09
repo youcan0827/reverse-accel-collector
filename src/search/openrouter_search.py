@@ -1,7 +1,7 @@
 """
 OpenRouter API を使った検索
-6クエリ実行、優先ソース(eiicon/peatix/creww)URLを先頭に配置、最大35件返却
-コスト最適化: max_tokens=800, temperature=0.1
+10クエリ実行、優先ソース(eiicon/peatix/creww)URLを先頭に配置、最大80件返却
+コスト最適化: max_tokens=1500, temperature=0.1
 """
 import json
 import re
@@ -25,6 +25,7 @@ logger = get_logger()
 
 def _build_search_queries() -> list[str]:
     year = today_jst().year
+    today = today_jst().strftime("%Y年%m月%d日")
     return [
         f"リバース型アクセラレーター 日本 {year} 応募受付中",
         f"共創プログラム 企業 スタートアップ 募集 {year}",
@@ -32,15 +33,20 @@ def _build_search_queries() -> list[str]:
         "site:growth.creww.me アクセラ 参加企業 募集",
         f"オープンイノベーション 協業 プログラム 建設 BIM AI {year}",
         f"コーポレートアクセラレーター 日本 {year} 応募",
+        f"スタートアップ 企業 協業 AI 建設 DX {year} 募集中",
+        f"オープンイノベーション プログラム 製造 インフラ {year} 受付中",
+        "site:auba.eiicon.net 建設 DX 共創",
+        f"VC アクセラレーター 日本 建設 不動産テック {year} 応募",
     ]
 
 
 def _build_system_prompt() -> str:
-    year = today_jst().year
+    today = today_jst().strftime("%Y年%m月%d日")
     return (
         f"あなたはリバース型アクセラレーター・共創プログラムの情報収集専門家です。"
-        f"{year}年現在も募集受付中のプログラムのみを対象としてください。"
-        f"応募期限が過去のものや既に終了したプログラムは除外してください。"
+        f"今日は{today}です。"
+        f"{today}時点で応募受付中のプログラムのみを対象としてください。"
+        f"{today}時点で応募期限が過去のものや既に終了したプログラムは絶対に含めないでください。"
         "日本語のWebページURLのリストをJSON配列として出力してください。"
         "形式: [\"https://...\", \"https://...\"]"
         "URLのみを出力し、説明文は一切不要です。"
@@ -70,7 +76,7 @@ def _is_priority(url: str) -> bool:
 
 def fetch_candidate_urls() -> list[str]:
     """
-    6クエリを実行してURLを収集し、優先ソースを先頭に配置して最大35件返す。
+    10クエリを実行してURLを収集し、優先ソースを先頭に配置して最大80件返す。
     """
     all_urls: list[str] = []
     seen: set[str] = set()

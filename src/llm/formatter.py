@@ -32,24 +32,17 @@ _SYSTEM_PROMPT = """\
 
 {
   "タイトル": "プログラム名（文字列）",
-  "主催": "主催企業・団体名（不明なら「不明」、推測なら「（推定）社名」）",
-  "目的・狙い": "ONESTRUCTION目線：建設/BIM/AIとの親和性・活用可能性",
-  "企画の概要": "プログラムの内容・対象・特徴を200字以内で",
-  "企画のキモ": "このプログラムの最も重要なポイントを100字以内で",
-  "実現可能性": "ONESTRUCTIONの現状リソースで参加できるかの評価",
-  "ROI": "参加した場合の期待リターン・ビジネス価値",
-  "体制": "運営体制・支援内容（記載なければ「記載なし」）",
-  "スケジュール": "日程・マイルストーン（不明なら「不明」）",
-  "リスク": "参加・応募に際するリスク・注意点",
-  "相性評価": 3,
   "参照URL": "元ページURL（文字列）",
-  "掲載日": "YYYY-MM-DD または空文字列",
-  "更新日": "YYYY-MM-DD または空文字列",
-  "ステータス": "候補 または 要確認"
+  "参加お勧め度": 3,
+  "ステータス": "候補 または 要確認",
+  "is_active": true
 }
 
-相性評価は1（低）〜5（高）の整数で、ONESTRUCTIONとの親和性に基づいて設定してください。
+参加お勧め度は1（低）〜5（高）の整数で、ONESTRUCTIONとの親和性に基づいて設定してください。
 ステータスは「候補」（応募検討に値する）または「要確認」（情報不足・期限不明）を選択してください。
+is_activeはページの内容から募集が現在進行中かを判定してください。
+期限切れ・終了済み・募集終了と読み取れる場合は false にしてください。
+現在応募受付中、または判断できない場合は true にしてください。
 """
 
 
@@ -131,15 +124,23 @@ URL: {page.url}
         result.setdefault("参照URL", page.url)
         result.setdefault("タイトル", page.title or "（タイトル不明）")
         result.setdefault("ステータス", "候補")
+        result.setdefault("is_active", True)
 
-        # 相性評価の型保証
+        # 参加お勧め度の型保証
         try:
-            result["相性評価"] = int(result.get("相性評価", 3))
-            result["相性評価"] = max(1, min(5, result["相性評価"]))
+            result["参加お勧め度"] = int(result.get("参加お勧め度", 3))
+            result["参加お勧め度"] = max(1, min(5, result["参加お勧め度"]))
         except (TypeError, ValueError):
-            result["相性評価"] = 3
+            result["参加お勧め度"] = 3
 
-        logger.debug(f"LLM整形完了: {result.get('タイトル', '')[:30]}")
+        # is_activeの型保証（文字列 "false" も考慮）
+        raw_active = result.get("is_active", True)
+        if isinstance(raw_active, str):
+            result["is_active"] = raw_active.lower() not in ("false", "0", "no")
+        else:
+            result["is_active"] = bool(raw_active)
+
+        logger.debug(f"LLM整形完了: {result.get('タイトル', '')[:30]} (is_active={result['is_active']})")
         return result
 
     except Exception as exc:
