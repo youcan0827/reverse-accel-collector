@@ -2,7 +2,7 @@
 
 ---
 
-# Notion登録フィールド
+# メール送信フィールド
 
 ## 必須項目
 
@@ -36,9 +36,9 @@
 | タイトル | string | プログラム名 |
 | 参加お勧め度 | number (1-5) | ONESTRUCTIONとの親和性スコア |
 | 参照URL | string | 元ページURL |
-| is_active | boolean | 現在募集中か（false=Notionに登録しない） |
+| is_active | boolean | 現在募集中か（false=メール送信しない） |
 
 ## is_active 判定ルール
 
 - `true`: 現在応募受付中、または判断できない場合
-- `false`: 期限切れ・募集終了・終了済みと読み取れる場合（Notionに登録されない）
+- `false`: 期限切れ・募集終了・終了済みと読み取れる場合（メール送信されない）

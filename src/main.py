@@ -1,5 +1,6 @@
 """
-リバース型アクセラ自動収集システム v1.1
+リバース型アクセラ自動収集システム v2.0
+メール完結版
 cronエントリーポイント: 8ステップを try/finally で統合
 
 どのステップで例外が発生しても finally でメール通知を保証する。
@@ -17,8 +18,6 @@ from src.filter.deadline import apply_deadline_filter
 from src.filter.dedupe import dedupe_pages, load_seen_urls, save_seen_urls
 from src.filter.freshness import filter_stale_pages, sort_by_freshness
 from src.llm.formatter import format_pages
-from src.notion.client import create_page
-from src.notion.mapper import to_notion_properties
 from src.notify.emailer import send_report
 from src.search.openrouter_search import fetch_candidate_urls
 from src.utils.dates import today_jst
@@ -114,19 +113,17 @@ def main() -> None:
             logger.info(f"is_active=false 除外: {inactive_count}件")
         records = active_records
 
-        # ── Step 7: Notionへ登録 ─────────────────────────────────────
-        logger.info(f"Step 7: Notion登録 ({len(records)}件)")
-        for record in records:
-            title = record.get("タイトル", "（不明）")
-            try:
-                props = to_notion_properties(record)
-                create_page(props)
-                registered_records.append(record)
-                logger.info(f"  登録: {title[:40]}")
-            except Exception as e:
-                err_msg = f"Notion登録失敗 [{title[:30]}]: {e}"
-                errors.append(err_msg)
-                logger.error(err_msg)
+        # 参加お勧め度の高い順にソート
+        records.sort(key=lambda r: r.get("参加お勧め度", 0), reverse=True)
+
+        registered_records = records
+
+        # ── Step 7: 送信済みURLを保存 ────────────────────────────────
+        if registered_records:
+            new_urls = {r.get("参照URL", "") for r in registered_records if r.get("参照URL")}
+            updated_seen = existing_urls | new_urls
+            save_seen_urls(updated_seen)
+            logger.info(f"送信済みURL保存: {len(new_urls)}件追加 → 累計{len(updated_seen)}件")
 
     except Exception as e:
         err_msg = f"予期せぬエラー: {e}"

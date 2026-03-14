@@ -21,11 +21,6 @@ OPENROUTER_MODEL_EXTRACT: str = os.environ.get(
 )
 OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 
-# ── Notion ───────────────────────────────────────────────────────
-NOTION_TOKEN: str = os.environ.get("NOTION_TOKEN", "")
-NOTION_DATABASE_ID: str = os.environ.get("NOTION_DATABASE_ID", "")
-NOTION_API_VERSION: str = "2022-06-28"
-
 # ── Email (Gmail SMTP SSL) ────────────────────────────────────────
 EMAIL_FROM: str = os.environ.get("EMAIL_FROM", "")
 EMAIL_TO: str = os.environ.get("EMAIL_TO", "")
@@ -40,7 +35,7 @@ PRIORITY_SOURCES: list[str] = [
     "growth.creww.me",
 ]
 MAX_URLS: int = 80          # 検索で取得する最大URL数
-MAX_REGISTER: int = 15      # Notionに登録する最大件数
+MAX_REGISTER: int = 15      # メールで送信する最大件数
 DEADLINE_MAX_DAYS: int = 90 # 期限がこの日数より先は除外
 FRESHNESS_DAYS: int = 7     # 鮮度スコアの基準日数
 STALENESS_MAX_DAYS: int = 120  # 掲載日・更新日がこれより古く期限不明なら除外
