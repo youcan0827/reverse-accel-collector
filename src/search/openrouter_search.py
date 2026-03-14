@@ -1,7 +1,7 @@
 """
 OpenRouter API を使った検索
-10クエリ実行、優先ソース(eiicon/peatix/creww)URLを先頭に配置、最大80件返却
-コスト最適化: max_tokens=1500, temperature=0.1
+15クエリ実行、優先ソース(eiicon/peatix/creww)URLを先頭に配置、最大35件返却
+コスト最適化: max_tokens=800, temperature=0.1
 """
 import json
 import re
@@ -25,28 +25,38 @@ logger = get_logger()
 
 def _build_search_queries() -> list[str]:
     year = today_jst().year
-    today = today_jst().strftime("%Y年%m月%d日")
     return [
+        # アクセラレーター系
         f"リバース型アクセラレーター 日本 {year} 応募受付中",
-        f"共創プログラム 企業 スタートアップ 募集 {year}",
-        "site:auba.eiicon.net リバース型 共創 募集",
-        "site:growth.creww.me アクセラ 参加企業 募集",
-        f"オープンイノベーション 協業 プログラム 建設 BIM AI {year}",
-        f"コーポレートアクセラレーター 日本 {year} 応募",
-        f"スタートアップ 企業 協業 AI 建設 DX {year} 募集中",
-        f"オープンイノベーション プログラム 製造 インフラ {year} 受付中",
-        "site:auba.eiicon.net 建設 DX 共創",
+        f"コーポレートアクセラレーター 日本 {year} 応募 締切",
         f"VC アクセラレーター 日本 建設 不動産テック {year} 応募",
+        # 共創・共同開発系
+        f"共創プログラム 企業 スタートアップ 募集 {year} 締切",
+        f"共同開発 スタートアップ 企業 {year} 募集 応募",
+        f"事業共創 パートナー募集 スタートアップ {year}",
+        f"実証実験 PoC 協業 スタートアップ {year} 募集中",
+        # オープンイノベーション系
+        f"オープンイノベーション 協業 プログラム 建設 BIM AI {year}",
+        f"オープンイノベーション プログラム 製造 インフラ {year} 受付中",
+        f"オープンイノベーション 共同開発 スタートアップ 募集 {year}",
+        # 建設・BIM・AI特化
+        f"スタートアップ 協業 AI 建設 DX {year} 募集中",
+        f"建設テック 不動産テック 協業 共創 {year} 応募",
+        # 優先ソース
+        "site:auba.eiicon.net リバース型 共創 募集",
+        "site:auba.eiicon.net 建設 DX 共同開発 協業",
+        "site:growth.creww.me アクセラ 共創 参加企業 募集",
     ]
 
 
 def _build_system_prompt() -> str:
     today = today_jst().strftime("%Y年%m月%d日")
     return (
-        f"あなたはリバース型アクセラレーター・共創プログラムの情報収集専門家です。"
+        f"あなたはオープンイノベーション・共創プログラム・共同開発・協業の情報収集専門家です。"
         f"今日は{today}です。"
-        f"{today}時点で応募受付中のプログラムのみを対象としてください。"
-        f"{today}時点で応募期限が過去のものや既に終了したプログラムは絶対に含めないでください。"
+        f"【重要】{today}時点で応募受付中または募集中のプログラムのみを対象としてください。"
+        f"応募期限が{today}より過去のもの、既に終了・締切済みのプログラムは絶対に含めないでください。"
+        "対象プログラムの種類: リバース型アクセラレーター、共創プログラム、共同開発パートナー募集、オープンイノベーション、協業プログラム、PoC実証実験募集。"
         "日本語のWebページURLのリストをJSON配列として出力してください。"
         "形式: [\"https://...\", \"https://...\"]"
         "URLのみを出力し、説明文は一切不要です。"
@@ -76,7 +86,7 @@ def _is_priority(url: str) -> bool:
 
 def fetch_candidate_urls() -> list[str]:
     """
-    10クエリを実行してURLを収集し、優先ソースを先頭に配置して最大80件返す。
+    15クエリを実行してURLを収集し、優先ソースを先頭に配置して最大35件返す。
     """
     all_urls: list[str] = []
     seen: set[str] = set()
