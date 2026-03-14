@@ -32,14 +32,12 @@ _SYSTEM_PROMPT = """\
 
 {
   "タイトル": "プログラム名（文字列）",
-  "参照URL": "元ページURL（文字列）",
   "参加お勧め度": 3,
-  "ステータス": "候補 または 要確認",
+  "参照URL": "元ページURL（文字列）",
   "is_active": true
 }
 
 参加お勧め度は1（低）〜5（高）の整数で、ONESTRUCTIONとの親和性に基づいて設定してください。
-ステータスは「候補」（応募検討に値する）または「要確認」（情報不足・期限不明）を選択してください。
 is_activeはページの内容から募集が現在進行中かを判定してください。
 期限切れ・終了済み・募集終了と読み取れる場合は false にしてください。
 現在応募受付中、または判断できない場合は true にしてください。
@@ -123,7 +121,6 @@ URL: {page.url}
         # 必須フィールドの補完
         result.setdefault("参照URL", page.url)
         result.setdefault("タイトル", page.title or "（タイトル不明）")
-        result.setdefault("ステータス", "候補")
         result.setdefault("is_active", True)
 
         # 参加お勧め度の型保証
