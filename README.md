@@ -58,6 +58,7 @@ cd reverse-accel-collector
 ### 2. 仮想環境を作成・依存パッケージをインストール
 
 ```bash
+cd reverse-accel-collector
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
